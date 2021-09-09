@@ -770,15 +770,16 @@ Int_t ProcessPositivePulse(BRawFADCSample* ch, int &t1, Double_t posThres, Doubl
   imp->SetTimeParameters(newT1+offset, newT2+offset, ta+offset);
 
     Int_t nDPfound = FindDP(data,newT1,newT2,initPed,nbins);
-    if (nDPfound > 10)
+    if (nDPfound > 6)
     {
-      if (nDPfound > 10)
+      // if (nDPfound > 10)
         cout << nDPfound << endl;
       // imp->SetDP(DPfound);//SeparatePulses();
     // imp->SetGumpbelParameters(0,0,0,0,0,0);
     // }else{
-    	TF1* fitFunc = FitDP(data,initPed,newT1,newT2);
-    	// DrawWaveform(data,nbins,initPed,0,t1,newT1,t2,newT2,a,posThres,fitFunc);
+    	// TF1* fitFunc = FitDPEqual(data,initPed,newT1,newT2);
+        TF1* fitFunc = FitDP(data,initPed,newT1,newT2);
+    	DrawWaveform(data,nbins,initPed,0,t1,newT1,t2,newT2,a,posThres,fitFunc);
     	delete fitFunc;
     }else
     {
@@ -786,9 +787,9 @@ Int_t ProcessPositivePulse(BRawFADCSample* ch, int &t1, Double_t posThres, Doubl
       {
         double beta = 0;
         TF1* fitFunc = FitPulse(data,newT1,newT2,initPed,a,ta,beta);
-        cout << offset << endl;
-        cout << "Real time: " << imp->GetT() << " real charge: " << imp->GetQ() << endl;
-        DrawWaveform(data,nbins,initPed,0,t1,newT1,t2,newT2,a,posThres,fitFunc);
+        // cout << offset << endl;
+        // cout << "Real time: " << imp->GetT() << " real charge: " << imp->GetQ() << endl;
+        // DrawWaveform(data,nbins,initPed,0,t1,newT1,t2,newT2,a,posThres,fitFunc);
       }
     }
 
@@ -855,7 +856,7 @@ Int_t AnalyzeFADCSample(BRawFADCSample* ch)
     return 1;
 }
 
-int pulseExtraction()
+int pulseExtraction(TString fileName)
 {
 	TFile *file = new TFile(fileName.Data(), "READ");
 	TTree *tree = (TTree*)file->Get("Events");
