@@ -36,21 +36,24 @@ struct DP
   Float_t P_DP;     // position of the DP
 };
 
+// Double pulse analysis variables
 TMVA::Reader fReader;
 DP fFoundDP;
 std::vector<DP> v_foundDPs;
 Double_t fBDTCut;
 
-TString fileName = "/Data/BaikalData/exp16_barsv051/cluster0/0070/f0070.raw.events.212.sorted.root";
-Int_t fSizeAvgWindowB = 8;
-Int_t fSizeAvgWindowE = 5;
-Int_t fNSigmas = 4;
+// TString fileName = "/Data/BaikalData/exp16_barsv051/cluster0/0070/f0070.raw.events.212.sorted.root";
+Int_t fSizeAvgWindowB = 8; // number of samples that are used to calculate pedestal value at the beginning of the waveform
+Int_t fSizeAvgWindowE = 5; // number of samples that are used to calculate pedestal value at the end of the waveform
+Int_t fNSigmas = 4; // number of sigmas of pedestal that has to be reached to start pulse processing
 
+// global histograms
 TCanvas* myCan = new TCanvas("myCan","Results",1024,720);
 TH1F* h_initPedRMS = new TH1F("h_initPedRMS","Initial pedestal RMS; Ped_{init} [FADC channels]; NoE [#]",1000,0,100);
 TH1F* h_begEndDiff = new TH1F("h_begEndDiff","First - Last sample; First - Last [FADC channels]; NoE [#]",1000,0,100);
 
-TFile* outputFile = new TFile("/Data/BaikalData/exp16_barsv051/cluster0/0070/waveforms.root", "RECREATE");
+// root file where the visualizations of waveforms can be saved
+TFile* outputFile;
 
 void InitializeBDT()
 {
@@ -74,6 +77,8 @@ void InitializeBDT()
     fReader.BookMVA( "BDT", weights_path );
 }
 
+
+// Drawing of global histograms that are defined above
 int DrawResults()
 {
 	TCanvas* c_initPed = new TCanvas("c_initPed","InitialPedestal");
@@ -147,7 +152,7 @@ int DrawWaveform(Short_t* data, Int_t nbins, float average, int offset, int t1, 
     myCan->Modified();
     myCan->Update();
     int dummy;
-    cin >> dummy;
+    // cin >> dummy;
     delete waveform;
     return dummy;
 }
@@ -165,6 +170,8 @@ int DrawWaveform(Short_t* data, Int_t nbins, float average, int offset, int t1, 
 	waveform->GetYaxis()->SetTitle("Amplitude [FADC channels]");
     waveform->SetLineWidth(3);
     waveform->Draw("APL*");
+    outputFile->cd();
+    waveform->Write();
 
     TLine* pedestalLine = new TLine(0,0,nbins,0);
     pedestalLine->SetLineColor(kRed);
@@ -221,7 +228,7 @@ int DrawWaveform(Short_t* data, Int_t nbins, float average, int offset, int t1, 
     myCan->Modified();
     myCan->Update();
     int dummy;
-    cin >> dummy;
+    // cin >> dummy;
     delete waveform;
     return dummy;
 }
@@ -300,6 +307,7 @@ void QProcessing(Short_t* data, int posDP, int t1, int t2, double average)
     fFoundDP.QAratio = Q/A;
 }
 
+// search for the local minimum and test if it is DP with BDTs
 Int_t FindDP(Short_t* data, Int_t t1, Int_t t2, Float_t pedestal, Int_t nbins)
 {
     Int_t nFoundDPs = 0;
@@ -318,12 +326,12 @@ Int_t FindDP(Short_t* data, Int_t t1, Int_t t2, Float_t pedestal, Int_t nbins)
             // cout << "DP found: " << i << endl;
             fFoundDP.A_2 = data[i]-pedestal;
             fFoundDP.A_1 = data[i]-pedestal;
-      fFoundDP.nSamples = nbins;
-      fFoundDP.nSamplesExt = t2- t1;
-      fFoundDP.A_dp = data[i]-pedestal;
-      fFoundDP.P_DP = (i-nZeros/2) - t1;
-      fFoundDP.Prel_DPExt = (double)(i-nZeros/2)/fFoundDP.nSamplesExt*100;
-      fFoundDP.Prel_DP = (double)(i-nZeros/2)/nbins*100;
+            fFoundDP.nSamples = nbins;
+            fFoundDP.nSamplesExt = t2- t1;
+            fFoundDP.A_dp = data[i]-pedestal;
+            fFoundDP.P_DP = (i-nZeros/2) - t1;
+            fFoundDP.Prel_DPExt = (double)(i-nZeros/2)/fFoundDP.nSamplesExt*100;
+            fFoundDP.Prel_DP = (double)(i-nZeros/2)/nbins*100;
             FindNeighboringAmplitudes(data,i-nZeros/2,t1,t2,pedestal);
             QProcessing(data,i-nZeros/2,t1,t2,pedestal);
             // cout << "Amp1: " << amp1 << " Amp2: " << amp2 << " AmpDP: " << data[i]-pedestal << " Dist1: " << dist1 << " Dist2: " << dist2 << endl;
@@ -382,6 +390,7 @@ Double_t ChargeCorrAfter(Short_t* data, double pedestal, int &newT2, double posT
   return qCorr;
 }
 
+// function to fit a single pulse. If the pulse is saturated, other function has to be used.
 TF1* FitPulse(Short_t* data, int t1, int t2, double average, Float_t amplitude,Int_t ampPos, Double_t& beta)
 {
     // cout << "amplitude: " << amplitude << " position: " << (t2+t1)/2 << endl;
@@ -437,6 +446,8 @@ TF1* FitPulse(Short_t* data, int t1, int t2, double average, Float_t amplitude,I
     return fitFunc;
 }
 
+// fucntion for the DP fitting. The function is made based on the number of found DPs (global)
+// initial parameters are set based on the studies of Gumbel
 TF1* FitDP(Short_t* data, double initPed, int t1, int t2)
 {
     // cout << "amplitude: " << amplitude << " position: " << (t2+t1)/2 << endl;
@@ -503,7 +514,7 @@ TF1* FitDP(Short_t* data, double initPed, int t1, int t2)
   myCan->Modified();
     myCan->Update();
     int dummy;
-    cin >> dummy;
+    // cin >> dummy;
     // delete waveform;
     // return dummy;
     for (int i = 0; i < v_foundDPs.size()+1; ++i)
@@ -533,6 +544,7 @@ TF1* FitDP(Short_t* data, double initPed, int t1, int t2)
     return fitFunc;
 }
 
+// the same like FitDP but here all the betas are fixed as one value
 TF1* FitDPEqual(Short_t* data, double initPed, int t1, int t2)
 {
     // cout << "amplitude: " << amplitude << " position: " << (t2+t1)/2 << endl;
@@ -598,7 +610,7 @@ TF1* FitDPEqual(Short_t* data, double initPed, int t1, int t2)
   myCan->Modified();
     myCan->Update();
     int dummy;
-    cin >> dummy;
+    // cin >> dummy;
     // delete waveform;
     // return dummy;
     for (int i = 0; i < v_foundDPs.size()+1; ++i)
@@ -721,12 +733,13 @@ Int_t ProcessPositivePulse(BRawFADCSample* ch, int &t1, Double_t posThres, Doubl
 {
     v_foundDPs.clear();
     // cout << "Positive pulse" << endl;
-    Int_t nbins = ch->GetNbins();
-    Short_t* data = ch->GetData();
-    Int_t offset = ch->GetOffset();
+    Int_t nbins = ch->GetNbins(); // nSamples in  the waveform
+    Short_t* data = ch->GetData(); // array of waveform samples
+    Int_t offset = ch->GetOffset(); // time offset in the 1024 window
 
     Float_t q = 0, a = 0; // q = charge of the pulse, a = amplitude of the pulse
-    Int_t t2 = 0, ta = 0, newT2 = 0, newT1 = t1; // t1,2 = time of the first and last point above threshold, newT1,2 = the same with new extended method
+    // t1,2 = time of the first and last point above threshold, newT1,2 = the same with new extended method
+    Int_t t2 = 0, ta = 0, newT2 = 0, newT1 = t1;
 
     // if (initPedRMS > 2)
     // 	DrawWaveform(data,nbins,initPed,offset,0,0,0,0,0,0);
@@ -734,6 +747,7 @@ Int_t ProcessPositivePulse(BRawFADCSample* ch, int &t1, Double_t posThres, Doubl
     // add also a charge of the pulse before the 4sigma of the pedestal was exceeded
     q += ChargeCorrBefore(data,initPed,newT1);
 
+    // integrate charge of the pulse, find amplitude and time of the amplitude
     for (int i = t1; i < nbins; ++i)
     {
         if (data[i] >= posThres)
@@ -759,18 +773,21 @@ Int_t ProcessPositivePulse(BRawFADCSample* ch, int &t1, Double_t posThres, Doubl
         }
     }
 
-    // get rid off the pulses with just one
+    // get rid off the pulses with just one sample
     if (t1 == t2)
         return 0;
 
+    // create and fill output class
     BExtractedImpulse* imp = new BExtractedImpulse();
-  imp->SetAmpParameters(q, a);
-  imp->SetTimeParameters(newT1, newT2, ta);
-  SetTimeParameters(ch,imp,initPed,posThres);
-  imp->SetTimeParameters(newT1+offset, newT2+offset, ta+offset);
+    imp->SetAmpParameters(q, a);
+    imp->SetTimeParameters(newT1, newT2, ta);
+    SetTimeParameters(ch,imp,initPed,posThres);
+    imp->SetTimeParameters(newT1+offset, newT2+offset, ta+offset);
 
+    // search for DP
     Int_t nDPfound = FindDP(data,newT1,newT2,initPed,nbins);
-    if (nDPfound > 6)
+    // if at least one DP found, fit the waveform with DP function otherwise fit with single
+    if (nDPfound > 0)
     {
       // if (nDPfound > 10)
         cout << nDPfound << endl;
@@ -779,11 +796,11 @@ Int_t ProcessPositivePulse(BRawFADCSample* ch, int &t1, Double_t posThres, Doubl
     // }else{
     	// TF1* fitFunc = FitDPEqual(data,initPed,newT1,newT2);
         TF1* fitFunc = FitDP(data,initPed,newT1,newT2);
-    	DrawWaveform(data,nbins,initPed,0,t1,newT1,t2,newT2,a,posThres,fitFunc);
+    	// DrawWaveform(data,nbins,initPed,0,t1,newT1,t2,newT2,a,posThres,fitFunc);
     	delete fitFunc;
     }else
     {
-      if (nDPfound == 0 && a > 1500)
+      // if (nDPfound == 0 && a > 1500)
       {
         double beta = 0;
         TF1* fitFunc = FitPulse(data,newT1,newT2,initPed,a,ta,beta);
@@ -806,9 +823,9 @@ Int_t AnalyzeFADCSample(BRawFADCSample* ch)
     //Set parameters which are waveform shape independent and the same for all pulses in the waveform
     // Int_t nchgeom = fGeomTel->GetNchGeom(ch->GetNum(), fRawMasterHeader->GetSdc());
     Int_t nfilter = ch->GetNfilter();
-    Int_t nbins = ch->GetNbins();
-    Short_t* data = ch->GetData();
-    Short_t offset = ch->GetOffset();
+    Int_t nbins = ch->GetNbins(); // nSamples in the waveform
+    Short_t* data = ch->GetData(); //array of sampled values of waveform
+    Short_t offset = ch->GetOffset(); // offset position in the 1024 FADC time window
 
     // if (offset != 0)
     	// return 0;
@@ -825,6 +842,9 @@ Int_t AnalyzeFADCSample(BRawFADCSample* ch)
 
     // cout << initPed << " " << initPedRMS << endl;
 
+    // For a very long waveforms, the pedestal value can float a lot. The current value of the pedestal
+    // has to be calculated in the waveform processing. The samples are used for the calculation only
+    // when they are not in the region of positive or negative pulse
     Double_t currPed = initPed;
     Double_t currPedRMS = initPedRMS;
     Int_t nPedBins = 1;
@@ -834,6 +854,8 @@ Int_t AnalyzeFADCSample(BRawFADCSample* ch)
         Double_t negThres = (currPedRMS > 1) ? currPed - fNSigmas * currPedRMS : currPed - fNSigmas * 1;
         Double_t posThres = (currPedRMS > 1) ? currPed + fNSigmas * currPedRMS : currPed + fNSigmas * 1;
 
+        // if the current sample is above the threshold defined for positive pulses, process it
+        // otherwise use the value to update the current pedestal value
         if (data[i] > posThres) //
         {
             if (ProcessPositivePulse(ch,i,posThres,currPed,initPedRMS))
@@ -856,16 +878,23 @@ Int_t AnalyzeFADCSample(BRawFADCSample* ch)
     return 1;
 }
 
+// Main function responsible for the reading of the files with raw waveforms, waveform processing and results drawing
 int pulseExtraction(TString fileName)
 {
+    //open the right file and set the proper variables in the TTree
 	TFile *file = new TFile(fileName.Data(), "READ");
 	TTree *tree = (TTree*)file->Get("Events");
+
+    TString outputPath = fileName(0,fileName.Last('/')+1);
+
+    outputFile = new TFile(Form("%swaveforms.root",outputPath.Data()), "RECREATE");
 
 	BRawMasterData *nsdmaster = 0;
 	tree->SetBranchAddress("BRawMasterData.", &nsdmaster);
 	BRawMasterHeader *nsdheader = 0;
 	tree->SetBranchAddress("BRawMasterHeader.", &nsdheader);
 
+    // initialize the BDTs
 	InitializeBDT();
 
 	// loop over all the events
@@ -876,7 +905,7 @@ int pulseExtraction(TString fileName)
 
         tree->GetEntry(i);
         // cout << "Event: " << i << " with: " << nsdmaster->GetNumSamples() << " raw waveforms" << endl;
-        // loop over all the pulses in given events
+        // loop over all the waveforms in given events
         for (int j = 0; j < nsdmaster->GetNumSamples(); ++j)
         {
             // cout << "Waveform: " << j << " length: " << nsdmaster->GetFADCSample(j)->GetNbins() << " offset: " << nsdmaster->GetFADCSample(j)->GetOffset() << endl;
